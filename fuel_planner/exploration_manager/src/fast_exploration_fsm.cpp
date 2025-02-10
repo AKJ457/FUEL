@@ -199,7 +199,6 @@ int FastExplorationFSM::callExplorationPlanner() {
 
 void FastExplorationFSM::visualize() {
   auto info = &planner_manager_->local_data_;
-  auto plan_data = &planner_manager_->plan_data_;
   auto ed_ptr = expl_manager_->ed_;
 
   // Draw updated box
