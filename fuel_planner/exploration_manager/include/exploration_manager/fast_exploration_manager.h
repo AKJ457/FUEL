@@ -28,12 +28,18 @@ public:
 
   void initialize(ros::NodeHandle& nh);
 
-  int planExploreMotion(const Vector3d& pos, const Vector3d& vel, const Vector3d& acc,
-                        const Vector3d& yaw);
+  // Main function to execute exploration planning
+  int planExploreMotion(const Vector3d& pos, const Vector3d& vel, 
+                        const Vector3d& acc, const Vector3d& yaw);
 
-  // Benchmark method, classic frontier and rapid frontier
+  // Classic and rapid frontier methods
   int classicFrontier(const Vector3d& pos, const double& yaw);
-  int rapidFrontier(const Vector3d& pos, const Vector3d& vel, const double& yaw, bool& classic);
+  int rapidFrontier(const Vector3d& pos, const Vector3d& vel, 
+                    const double& yaw, bool& classic);
+
+  // Exploration execution function (set as public)
+  bool executeExploration(const Vector3d& pos, const Vector3d& vel, 
+                          const Vector3d& acc, const Vector3d& yaw);
 
   shared_ptr<ExplorationData> ed_;
   shared_ptr<ExplorationParam> ep_;
@@ -44,12 +50,8 @@ private:
   shared_ptr<EDTEnvironment> edt_environment_;
   shared_ptr<SDFMap> sdf_map_;
 
-  // Find optimal tour for coarse viewpoints of all frontiers
-  void findGlobalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, const Vector3d cur_yaw,
-                      vector<int>& indices);
-
-  // Compute information gain for a given frontier
-  double computeInformationGain(const vector<Vector3d>& frontier);  
+  // Compute information gain at a given frontier
+  double computeInformationGain(const vector<Vector3d>& frontier);
 
   // Compute reward function for MDP-based exploration
   double computeMDPReward(const vector<Vector3d>& frontier, 
@@ -57,26 +59,29 @@ private:
                           const Vector3d& cur_vel, 
                           const Vector3d& cur_yaw);
 
-  // Solve MDP to determine the best exploration tour
+  // Solve MDP to determine the best exploration sequence
   vector<int> solveMDP(const vector<double>& rewards, 
                        const vector<vector<Vector3d>>& frontiers);
 
-  // Refine local tour for next few frontiers, using more diverse viewpoints
-  void refineLocalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, const Vector3d& cur_yaw,
-                       const vector<vector<Vector3d>>& n_points, const vector<vector<double>>& n_yaws,
-                       vector<Vector3d>& refined_pts, vector<double>& refined_yaws);
+  // Generate an optimal tour based on frontiers
+  void findGlobalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, 
+                      const Vector3d cur_yaw, vector<int>& indices);
 
-  // Shorten the exploration path
+  // Refine local tour for better exploration efficiency
+  void refineLocalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, 
+                       const Vector3d& cur_yaw, 
+                       const vector<vector<Vector3d>>& n_points, 
+                       const vector<vector<double>>& n_yaws,
+                       vector<Vector3d>& refined_pts, 
+                       vector<double>& refined_yaws);
+
+  // Shorten exploration paths to reduce redundant waypoints
   void shortenPath(vector<Vector3d>& path);
 
-  // Generate a smooth trajectory for UAV to follow the exploration path
+  // Generate a smooth trajectory for UAV exploration
   bool generateTrajectory(const Vector3d& start_pos, const Vector3d& start_vel, 
                           const Vector3d& start_acc, const Vector3d& goal_pos, 
                           const Vector3d& goal_vel);
-
-  // Execute the entire exploration pipeline
-  bool executeExploration(const Vector3d& pos, const Vector3d& vel, 
-                          const Vector3d& acc, const Vector3d& yaw);
 
 public:
   typedef shared_ptr<FastExplorationManager> Ptr;
