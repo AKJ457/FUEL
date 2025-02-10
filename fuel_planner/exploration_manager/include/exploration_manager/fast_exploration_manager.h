@@ -39,7 +39,6 @@ public:
   shared_ptr<ExplorationParam> ep_;
   shared_ptr<FastPlannerManager> planner_manager_;
   shared_ptr<FrontierFinder> frontier_finder_;
-  // unique_ptr<ViewFinder> view_finder_;
 
 private:
   shared_ptr<EDTEnvironment> edt_environment_;
@@ -52,12 +51,32 @@ private:
   // Compute information gain for a given frontier
   double computeInformationGain(const vector<Vector3d>& frontier);  
 
+  // Compute reward function for MDP-based exploration
+  double computeMDPReward(const vector<Vector3d>& frontier, 
+                          const Vector3d& cur_pos,
+                          const Vector3d& cur_vel, 
+                          const Vector3d& cur_yaw);
+
+  // Solve MDP to determine the best exploration tour
+  vector<int> solveMDP(const vector<double>& rewards, 
+                       const vector<vector<Vector3d>>& frontiers);
+
   // Refine local tour for next few frontiers, using more diverse viewpoints
   void refineLocalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, const Vector3d& cur_yaw,
                        const vector<vector<Vector3d>>& n_points, const vector<vector<double>>& n_yaws,
                        vector<Vector3d>& refined_pts, vector<double>& refined_yaws);
 
+  // Shorten the exploration path
   void shortenPath(vector<Vector3d>& path);
+
+  // Generate a smooth trajectory for UAV to follow the exploration path
+  bool generateTrajectory(const Vector3d& start_pos, const Vector3d& start_vel, 
+                          const Vector3d& start_acc, const Vector3d& goal_pos, 
+                          const Vector3d& goal_vel);
+
+  // Execute the entire exploration pipeline
+  bool executeExploration(const Vector3d& pos, const Vector3d& vel, 
+                          const Vector3d& acc, const Vector3d& yaw);
 
 public:
   typedef shared_ptr<FastExplorationManager> Ptr;
@@ -65,4 +84,4 @@ public:
 
 }  // namespace fast_planner
 
-#endif
+#endif  // _EXPLORATION_MANAGER_H_
