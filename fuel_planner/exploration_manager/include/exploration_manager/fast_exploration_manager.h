@@ -49,6 +49,9 @@ private:
   void findGlobalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, const Vector3d cur_yaw,
                       vector<int>& indices);
 
+  // Compute information gain for a given frontier
+  double computeInformationGain(const vector<Vector3d>& frontier);  
+
   // Refine local tour for next few frontiers, using more diverse viewpoints
   void refineLocalTour(const Vector3d& cur_pos, const Vector3d& cur_vel, const Vector3d& cur_yaw,
                        const vector<vector<Vector3d>>& n_points, const vector<vector<double>>& n_yaws,
