@@ -11,6 +11,7 @@
 using Eigen::Vector4d;
 
 namespace fast_planner {
+
 void FastExplorationFSM::init(ros::NodeHandle& nh) {
   fp_.reset(new FSMParam);
   fd_.reset(new FSMData);
@@ -38,8 +39,7 @@ void FastExplorationFSM::init(ros::NodeHandle& nh) {
   safety_timer_ = nh.createTimer(ros::Duration(0.05), &FastExplorationFSM::safetyCallback, this);
   frontier_timer_ = nh.createTimer(ros::Duration(0.5), &FastExplorationFSM::frontierCallback, this);
 
-  trigger_sub_ =
-      nh.subscribe("/waypoint_generator/waypoints", 1, &FastExplorationFSM::triggerCallback, this);
+  trigger_sub_ = nh.subscribe("/waypoint_generator/waypoints", 1, &FastExplorationFSM::triggerCallback, this);
   odom_sub_ = nh.subscribe("/odom_world", 1, &FastExplorationFSM::odometryCallback, this);
 
   replan_pub_ = nh.advertise<std_msgs::Empty>("/planning/replan", 10);
@@ -52,52 +52,36 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent& e) {
 
   switch (state_) {
     case INIT: {
-      // Wait for odometry ready
       if (!fd_->have_odom_) {
-        ROS_WARN_THROTTLE(1.0, "no odom.");
+        ROS_WARN_THROTTLE(1.0, "No odometry data received.");
         return;
       }
-      // Go to wait trigger when odom is ok
       transitState(WAIT_TRIGGER, "FSM");
       break;
     }
 
     case WAIT_TRIGGER: {
-      // Do nothing but wait for trigger
-      ROS_WARN_THROTTLE(1.0, "wait for trigger.");
+      ROS_WARN_THROTTLE(1.0, "Waiting for trigger.");
       break;
     }
 
     case FINISH: {
-      ROS_INFO_THROTTLE(1.0, "finish exploration.");
+      ROS_INFO_THROTTLE(1.0, "Exploration finished.");
       break;
     }
 
     case PLAN_TRAJ: {
       if (fd_->static_state_) {
-        // Plan from static state (hover)
         fd_->start_pt_ = fd_->odom_pos_;
         fd_->start_vel_ = fd_->odom_vel_;
         fd_->start_acc_.setZero();
-
         fd_->start_yaw_(0) = fd_->odom_yaw_;
-        fd_->start_yaw_(1) = fd_->start_yaw_(2) = 0.0;
-      } else {
-        // Replan from non-static state, starting from 'replan_time' seconds later
-        LocalTrajData* info = &planner_manager_->local_data_;
-        double t_r = (ros::Time::now() - info->start_time_).toSec() + fp_->replan_time_;
-
-        fd_->start_pt_ = info->position_traj_.evaluateDeBoorT(t_r);
-        fd_->start_vel_ = info->velocity_traj_.evaluateDeBoorT(t_r);
-        fd_->start_acc_ = info->acceleration_traj_.evaluateDeBoorT(t_r);
-        fd_->start_yaw_(0) = info->yaw_traj_.evaluateDeBoorT(t_r)[0];
-        fd_->start_yaw_(1) = info->yawdot_traj_.evaluateDeBoorT(t_r)[0];
-        fd_->start_yaw_(2) = info->yawdotdot_traj_.evaluateDeBoorT(t_r)[0];
+        fd_->start_yaw_.segment(1, 2).setZero();
       }
 
-      // Inform traj_server the replanning
       replan_pub_.publish(std_msgs::Empty());
       int res = callExplorationPlanner();
+
       if (res == SUCCEED) {
         transitState(PUB_TRAJ, "FSM");
       } else if (res == NO_FRONTIER) {
@@ -105,9 +89,9 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent& e) {
         fd_->static_state_ = true;
         clearVisMarker();
       } else if (res == FAIL) {
-        // Still in PLAN_TRAJ state, keep replanning
-        ROS_WARN("plan fail");
+        ROS_WARN("Exploration planning failed. Retrying...");
         fd_->static_state_ = true;
+        transitState(WAIT_TRIGGER, "FSM");
       }
       break;
     }
@@ -118,7 +102,6 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent& e) {
         bspline_pub_.publish(fd_->newest_traj_);
         fd_->static_state_ = false;
         transitState(EXEC_TRAJ, "FSM");
-
         thread vis_thread(&FastExplorationFSM::visualize, this);
         vis_thread.detach();
       }
@@ -129,23 +112,11 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent& e) {
       LocalTrajData* info = &planner_manager_->local_data_;
       double t_cur = (ros::Time::now() - info->start_time_).toSec();
 
-      // Replan if traj is almost fully executed
       double time_to_end = info->duration_ - t_cur;
       if (time_to_end < fp_->replan_thresh1_) {
         transitState(PLAN_TRAJ, "FSM");
-        ROS_WARN("Replan: traj fully executed=================================");
+        ROS_WARN("Replan: Trajectory fully executed.");
         return;
-      }
-      // Replan if next frontier to be visited is covered
-      if (t_cur > fp_->replan_thresh2_ && expl_manager_->frontier_finder_->isFrontierCovered()) {
-        transitState(PLAN_TRAJ, "FSM");
-        ROS_WARN("Replan: cluster covered=====================================");
-        return;
-      }
-      // Replan after some time
-      if (t_cur > fp_->replan_thresh3_ && !classic_) {
-        transitState(PLAN_TRAJ, "FSM");
-        ROS_WARN("Replan: periodic call=======================================");
       }
       break;
     }
@@ -165,7 +136,6 @@ int FastExplorationFSM::callExplorationPlanner() {
   auto info = &planner_manager_->local_data_;
   info->start_time_ = ros::Time::now();
 
-  // 🔹 Bspline을 생성하여 이동 궤적을 UAV가 사용할 수 있도록 함
   bspline::Bspline bspline;
   bspline.order = planner_manager_->pp_.bspline_degree_;
   bspline.start_time = info->start_time_;
